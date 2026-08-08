@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" class="dark scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>g4creative studio | Social Media Marketing Agency</title>
+    <meta name="description" content="g4creative studio is a premier social media marketing agency specializing in short-form viral content matrix, creator seeding, high-ROAS paid media scaling, and direct CRM lead capture." />
+    <meta name="keywords" content="social media marketing agency, short form video, tiktok growth agency, meta ads roas, crm lead generation, instagram reels strategy" />
+    
+    <!-- OpenGraph Meta Tags -->
+    <meta property="og:title" content="g4creative studio | Social Media Marketing Agency" />
+    <meta property="og:description" content="We turn social attention into scalable enterprise revenue. Explore case studies, client testimonials, and SEO playbooks." />
+    <meta property="og:type" content="website" />
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Load only the two primary families to improve LCP -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,700&display=swap" rel="stylesheet">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,700&display=swap">
+    <meta property="og:image" content="/assets/og-image.png" />
+    <!-- Structured data for Organization (replace URLs/logos as needed) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "g4creative studio",
+      "url": "https://g4creative.studio",
+      "logo": "https://g4creative.studio/assets/logo.png",
+      "sameAs": [
+        "https://www.linkedin.com/company/g4creative",
+        "https://www.instagram.com/g4creative.studio"
+      ],
+      "contactPoint": [{
+        "@type": "ContactPoint",
+        "telephone": "+1-888-44-G4-GROW",
+        "contactType": "customer service",
+        "areaServed": "US"
+      }]
+    }
+    </script>
+
+    <!-- Lightweight click-tracking: runs only after cookie consent; otherwise stores temp attribution in sessionStorage -->
+    <script>
+      (function(){
+        function trackEvent(action, label){
+          if(window.g4_tracking_enabled && window.gtag) {
+            try { window.gtag('event', action, { event_category: 'CTA', event_label: label }); } catch(e){}
+          } else {
+            console.log('analytics:', action, label);
+          }
+        }
+
+        function handleClick(id){
+          try{
+            var consent = localStorage.getItem('g4_cookie_consent');
+            if(consent === 'accepted') {
+              localStorage.setItem('g4_lead_source', id);
+            } else {
+              // store temporarily until user accepts cookies
+              sessionStorage.setItem('g4_lead_source_temp', id);
+            }
+          }catch(e){}
+          trackEvent('click_'+id, location.pathname + location.search);
+        }
+
+        function attachListeners(){
+          var ids = ['hero-get-audit-cta','hero-explore-work-cta','contact-submit-btn','hero-explore-work-cta'];
+          ids.forEach(function(id){
+            var el = document.getElementById(id);
+            if(!el) return;
+            el.removeEventListener('click', el.__g4_handler__);
+            el.__g4_handler__ = function(){ handleClick(id); };
+            el.addEventListener('click', el.__g4_handler__);
+          });
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){
+          attachListeners();
+        });
+
+        // When consent is granted by the CookieConsent component, it should dispatch this event
+        window.addEventListener('g4-cookie-consent', function(e){
+          try{
+            var consent = localStorage.getItem('g4_cookie_consent');
+            if(consent === 'accepted'){
+              // migrate any temp attribution
+              var temp = sessionStorage.getItem('g4_lead_source_temp');
+              if(temp) { localStorage.setItem('g4_lead_source', temp); sessionStorage.removeItem('g4_lead_source_temp'); }
+              // flag tracking enabled so other scripts can use it
+              window.g4_tracking_enabled = true;
+            }
+          }catch(e){}
+        });
+      })();
+    </script>
+  </head>
+  <body class="bg-background text-foreground antialiased font-sans">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
