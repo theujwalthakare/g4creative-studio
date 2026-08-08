@@ -1,11 +1,14 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
+  const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1] ?? 'g4creative-studio';
+  const basePath = process.env.VITE_BASE_PATH || (process.env.GITHUB_ACTIONS ? `/${repoName}/` : '/');
+
   return {
-    base: process.env.VITE_BASE_PATH || '/',
+    base: basePath,
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

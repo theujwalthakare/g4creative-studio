@@ -24,20 +24,26 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
         run: npm install
 
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
       - name: Build site
         env:
-          VITE_BASE_PATH: /g4creative-studio/
+          GITHUB_ACTIONS: "true"
+          GITHUB_REPOSITORY: theujwalthakare/g4creative-studio
           VITE_BACKEND_ENABLED: "false"
         run: npm run build
 
       - name: Add SPA fallback
-        run: cp dist/index.html dist/404.html
+        run: |
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
