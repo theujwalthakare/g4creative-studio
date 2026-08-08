@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Bot, Sparkles, X, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { getFallbackStrategy, isBackendEnabled } from '../lib/deployment';
 
 interface AiAuditModalProps {
   isOpen: boolean;
@@ -22,6 +23,11 @@ export const AiAuditModal: React.FC<AiAuditModalProps> = ({ isOpen, onClose, onS
     setStrategyResult(null);
 
     try {
+      if (!isBackendEnabled()) {
+        setStrategyResult(getFallbackStrategy(brandName, industry, goals));
+        return;
+      }
+
       const res = await fetch('/api/ai/audit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -30,9 +36,12 @@ export const AiAuditModal: React.FC<AiAuditModalProps> = ({ isOpen, onClose, onS
       const data = await res.json();
       if (data.success && data.strategy) {
         setStrategyResult(data.strategy);
+      } else {
+        setStrategyResult(getFallbackStrategy(brandName, industry, goals));
       }
     } catch (err) {
       console.error('Audit Error:', err);
+      setStrategyResult(getFallbackStrategy(brandName, industry, goals));
     } finally {
       setLoading(false);
     }

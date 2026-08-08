@@ -9,6 +9,8 @@ import { ContactCrmSection } from './components/ContactCrmSection';
 import { Footer } from './components/Footer';
 import { AiAuditModal } from './components/AiAuditModal';
 import CookieConsent from './components/CookieConsent';
+import { INITIAL_LEADS } from './data/mockData';
+import { isBackendEnabled, readStoredLeads } from './lib/deployment';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('hero');
@@ -19,14 +21,23 @@ export default function App() {
 
   // Fetch lead count from backend
   const fetchLeadCount = async () => {
+    if (!isBackendEnabled()) {
+      const localLeads = readStoredLeads();
+      setNewLeadsCount(localLeads.filter((lead) => lead.status === 'New').length || INITIAL_LEADS.filter((lead) => lead.status === 'New').length);
+      return;
+    }
+
     try {
       const res = await fetch('/api/crm/leads');
       const data = await res.json();
       if (data.success && data.stats) {
         setNewLeadsCount(data.stats.newLeads || 0);
+      } else {
+        setNewLeadsCount(INITIAL_LEADS.filter((lead) => lead.status === 'New').length);
       }
     } catch (err) {
       console.error('Failed to fetch lead count:', err);
+      setNewLeadsCount(INITIAL_LEADS.filter((lead) => lead.status === 'New').length);
     }
   };
 

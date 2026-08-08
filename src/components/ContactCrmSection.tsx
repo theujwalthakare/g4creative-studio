@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LeadCRM } from '../types';
 import { Send, CheckCircle2, Database, Sparkles, AlertCircle, RefreshCw, Filter, Phone, Mail, Building, DollarSign, Layers, Bot, Download, Trash2, ArrowRight } from 'lucide-react';
+import { getFallbackStrategy, isBackendEnabled, makeFallbackLead, readStoredLeads, writeStoredLeads } from '../lib/deployment';
 
 interface ContactCrmSectionProps {
   preselectedService?: string;
@@ -35,7 +36,7 @@ export const ContactCrmSection: React.FC<ContactCrmSectionProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
 
   // CRM Portal State
-  const [leadsList, setLeadsList] = useState<LeadCRM[]>([]);
+  const [leadsList, setLeadsList] = useState<LeadCRM[]>(readStoredLeads());
   const [crmLoading, setCrmLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [selectedLeadForAi, setSelectedLeadForAi] = useState<LeadCRM | null>(null);
@@ -85,15 +86,29 @@ export const ContactCrmSection: React.FC<ContactCrmSectionProps> = ({
     setErrorMessage('');
     setSubmittedLead(null);
 
+    const payload = {
+      ...formData,
+      services: selectedServices,
+      leadSource: leadSource || 'website'
+    };
+
     try {
+      if (!isBackendEnabled()) {
+        const lead = makeFallbackLead(formData, selectedServices, leadSource || 'website');
+        const nextLeads = [lead, ...readStoredLeads()];
+        writeStoredLeads(nextLeads);
+        setSubmittedLead(lead);
+        setLeadsList(nextLeads);
+        setFormData({ name: '', email: '', phone: '', company: '', budget: '$10,000 - $25,000 / mo', message: '' });
+        try { localStorage.removeItem('g4_lead_source'); sessionStorage.removeItem('g4_lead_source_temp'); } catch (e) {}
+        onLeadAdded();
+        return;
+      }
+
       const response = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          services: selectedServices,
-          leadSource: leadSource || 'website'
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -105,10 +120,24 @@ export const ContactCrmSection: React.FC<ContactCrmSectionProps> = ({
         onLeadAdded();
         fetchCrmLeads();
       } else {
-        setErrorMessage(data.error || 'Failed to submit inquiry to CRM.');
+        const fallbackLead = makeFallbackLead(formData, selectedServices, leadSource || 'website');
+        const nextLeads = [fallbackLead, ...readStoredLeads()];
+        writeStoredLeads(nextLeads);
+        setSubmittedLead(fallbackLead);
+        setLeadsList(nextLeads);
+        setFormData({ name: '', email: '', phone: '', company: '', budget: '$10,000 - $25,000 / mo', message: '' });
+        try { localStorage.removeItem('g4_lead_source'); sessionStorage.removeItem('g4_lead_source_temp'); } catch (e) {}
+        onLeadAdded();
       }
     } catch (err) {
-      setErrorMessage('Network error. Please try again.');
+      const fallbackLead = makeFallbackLead(formData, selectedServices, leadSource || 'website');
+      const nextLeads = [fallbackLead, ...readStoredLeads()];
+      writeStoredLeads(nextLeads);
+      setSubmittedLead(fallbackLead);
+      setLeadsList(nextLeads);
+      setFormData({ name: '', email: '', phone: '', company: '', budget: '$10,000 - $25,000 / mo', message: '' });
+      try { localStorage.removeItem('g4_lead_source'); sessionStorage.removeItem('g4_lead_source_temp'); } catch (e) {}
+      onLeadAdded();
     } finally {
       setIsSubmitting(false);
     }
@@ -117,13 +146,21 @@ export const ContactCrmSection: React.FC<ContactCrmSectionProps> = ({
   const fetchCrmLeads = async () => {
     setCrmLoading(true);
     try {
+      if (!isBackendEnabled()) {
+        setLeadsList(readStoredLeads());
+        return;
+      }
+
       const res = await fetch('/api/crm/leads');
       const data = await res.json();
       if (data.success) {
         setLeadsList(data.leads);
+      } else {
+        setLeadsList(readStoredLeads());
       }
     } catch (err) {
       console.error('Failed to load CRM leads:', err);
+      setLeadsList(readStoredLeads());
     } finally {
       setCrmLoading(false);
     }
@@ -135,6 +172,13 @@ export const ContactCrmSection: React.FC<ContactCrmSectionProps> = ({
 
   const handleUpdateLeadStatus = async (leadId: string, newStatus: LeadCRM['status']) => {
     try {
+      if (!isBackendEnabled()) {
+        const updated = readStoredLeads().map((lead) => (lead.id === leadId ? { ...lead, status: newStatus } : lead));
+        writeStoredLeads(updated);
+        setLeadsList(updated);
+        return;
+      }
+
       const res = await fetch(`/api/crm/leads/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -145,15 +189,28 @@ export const ContactCrmSection: React.FC<ContactCrmSectionProps> = ({
       }
     } catch (err) {
       console.error('Error updating status:', err);
+      const updated = readStoredLeads().map((lead) => (lead.id === leadId ? { ...lead, status: newStatus } : lead));
+      writeStoredLeads(updated);
+      setLeadsList(updated);
     }
   };
 
   const handleDeleteLead = async (leadId: string) => {
     try {
+      if (!isBackendEnabled()) {
+        const updated = readStoredLeads().filter((lead) => lead.id !== leadId);
+        writeStoredLeads(updated);
+        setLeadsList(updated);
+        return;
+      }
+
       await fetch(`/api/crm/leads/${leadId}`, { method: 'DELETE' });
       fetchCrmLeads();
     } catch (err) {
       console.error('Error deleting lead:', err);
+      const updated = readStoredLeads().filter((lead) => lead.id !== leadId);
+      writeStoredLeads(updated);
+      setLeadsList(updated);
     }
   };
 
@@ -163,6 +220,14 @@ export const ContactCrmSection: React.FC<ContactCrmSectionProps> = ({
     setAiDraftResponse('');
 
     try {
+      if (!isBackendEnabled()) {
+        const strategy = getFallbackStrategy(lead.company, lead.services.join(', '), lead.message);
+        setAiDraftResponse(
+          `Hi ${lead.name.split(' ')[0]},\n\nThank you for reaching out to g4creative studio! We reviewed your campaign goals for ${lead.company}.\n\nHere is our initial Growth Strategy Audit:\n• Strategy: ${strategy.headline}\n• Est. Reach: ${strategy.estimatedReach}\n• Action Plan:\n  1. ${strategy.actionPlan[0]}\n  2. ${strategy.actionPlan[1]}\n  3. ${strategy.actionPlan[2]}\n\nLet's schedule a 15-minute strategy call this week to finalize your rollout!`
+        );
+        return;
+      }
+
       const res = await fetch('/api/ai/audit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -177,9 +242,17 @@ export const ContactCrmSection: React.FC<ContactCrmSectionProps> = ({
         setAiDraftResponse(
           `Hi ${lead.name.split(' ')[0]},\n\nThank you for reaching out to g4creative studio! We reviewed your campaign goals for ${lead.company}.\n\nHere is our initial Growth Strategy Audit:\n• Strategy: ${data.strategy.headline}\n• Est. Reach: ${data.strategy.estimatedReach}\n• Action Plan:\n  1. ${data.strategy.actionPlan[0]}\n  2. ${data.strategy.actionPlan[1]}\n  3. ${data.strategy.actionPlan[2]}\n\nLet's schedule a 15-minute strategy call this week to finalize your rollout!`
         );
+      } else {
+        const strategy = getFallbackStrategy(lead.company, lead.services.join(', '), lead.message);
+        setAiDraftResponse(
+          `Hi ${lead.name.split(' ')[0]},\n\nThank you for reaching out to g4creative studio! We reviewed your campaign goals for ${lead.company}.\n\nHere is our initial Growth Strategy Audit:\n• Strategy: ${strategy.headline}\n• Est. Reach: ${strategy.estimatedReach}\n• Action Plan:\n  1. ${strategy.actionPlan[0]}\n  2. ${strategy.actionPlan[1]}\n  3. ${strategy.actionPlan[2]}\n\nLet's schedule a 15-minute strategy call this week to finalize your rollout!`
+        );
       }
     } catch (err) {
-      setAiDraftResponse('Failed to generate AI proposal draft.');
+      const strategy = getFallbackStrategy(lead.company, lead.services.join(', '), lead.message);
+      setAiDraftResponse(
+        `Hi ${lead.name.split(' ')[0]},\n\nThank you for reaching out to g4creative studio! We reviewed your campaign goals for ${lead.company}.\n\nHere is our initial Growth Strategy Audit:\n• Strategy: ${strategy.headline}\n• Est. Reach: ${strategy.estimatedReach}\n• Action Plan:\n  1. ${strategy.actionPlan[0]}\n  2. ${strategy.actionPlan[1]}\n  3. ${strategy.actionPlan[2]}\n\nLet's schedule a 15-minute strategy call this week to finalize your rollout!`
+      );
     } finally {
       setIsGeneratingAi(false);
     }
